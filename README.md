@@ -27,7 +27,11 @@ swift test
 
 ### 当前的vapor和数据库的运行健康状态检查
 ```shell
-let jsonString = try JSONSerialization.jsonObject(with: JSONEncoder().encode(status), options: []).description + "\n"
+for i in {1..20}; do
+  curl -s -o /dev/null -w "%{http_code} " -H "X-API-Key: sinduke" http://localhost:8080/sinduke/health &
+done
+wait
+echo ""
 ```
 
 ### See more

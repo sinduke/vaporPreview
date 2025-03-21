@@ -1,5 +1,6 @@
 import Vapor
 
+// RateLimiter 使用 actor 确保线程安全
 actor RateLimiter {
     let requestsPerSecond: Int
     let timeWindow: TimeInterval = 1.0
@@ -26,21 +27,38 @@ actor RateLimiter {
     }
 }
 
+// RateLimitMiddleware 作为中间件限制请求
 final class RateLimitMiddleware: AsyncMiddleware {
-    private let limiter: RateLimiter
-
-    init(requestsPerSecond: Int) {
-        self.limiter = RateLimiter(requestsPerSecond: requestsPerSecond)
-    }
-
     func respond(to request: Request, chainingTo next: any AsyncResponder) async throws -> Response {
         let ip = request.remoteAddress?.ipAddress ?? "unknown"
-        
-        let allowed = await limiter.allow(ip: ip)
+
+        // 使用全局共享的 rateLimiter
+        let allowed = await request.application.rateLimiter.allow(ip: ip)
         if !allowed {
             return Response(status: .tooManyRequests, body: .init(string: "Rate limit exceeded"))
         }
 
         return try await next.respond(to: request)
+    }
+}
+
+extension Application {
+    struct RateLimiterKey: StorageKey {
+        typealias Value = RateLimiter
+    }
+
+    var rateLimiter: RateLimiter {
+        get {
+            if let existing = self.storage[RateLimiterKey.self] {
+                return existing
+            } else {
+                let new = RateLimiter(requestsPerSecond: 10)
+                self.storage[RateLimiterKey.self] = new
+                return new
+            }
+        }
+        set {
+            self.storage[RateLimiterKey.self] = newValue
+        }
     }
 }
