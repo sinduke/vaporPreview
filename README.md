@@ -19,6 +19,17 @@ To execute tests, use the following command:
 swift test
 ```
 
+### 本地运行数据库
+可以通过本地脚本 在本地的docker中运行一个PostgreSQL
+```shell
+./start-local-db.sh
+```
+
+### 当前的vapor和数据库的运行健康状态检查
+```shell
+let jsonString = try JSONSerialization.jsonObject(with: JSONEncoder().encode(status), options: []).description + "\n"
+```
+
 ### See more
 
 - [Vapor Website](https://vapor.codes)

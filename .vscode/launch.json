@@ -1,0 +1,22 @@
+{
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:vaporPreview}",
+            "name": "Debug App",
+            "program": "${workspaceFolder:vaporPreview}/.build/debug/App",
+            "preLaunchTask": "swift: Build Debug App"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:vaporPreview}",
+            "name": "Release App",
+            "program": "${workspaceFolder:vaporPreview}/.build/release/App",
+            "preLaunchTask": "swift: Build Release App"
+        }
+    ]
+}

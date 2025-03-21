@@ -7,6 +7,7 @@ import Vapor
 // configures your application
 public func configure(_ app: Application) async throws {
     // uncomment to serve files from /Public folder
+    app.middleware.use(RateLimitMiddleware(requestsPerSecond: 10))
     // app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))
 
     app.databases.use(DatabaseConfigurationFactory.postgres(configuration: .init(
@@ -19,9 +20,14 @@ public func configure(_ app: Application) async throws {
     ), as: .psql)
 
     app.migrations.add(CreateTodo())
+    // 不区分大小写
+    app.routes.caseInsensitive = true
 
     app.views.use(.leaf)
 
     // register routes
     try routes(app)
+    for route in app.routes.all {
+        print(route)
+    }
 }
