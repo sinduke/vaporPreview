@@ -28,7 +28,8 @@ COPY . .
 RUN swift build -c release \
         --product App \
         --static-swift-stdlib \
-        -Xlinker -ljemalloc
+        -Xlinker -ljemalloc \
+        --jobs 4
 
 # Switch to the staging area
 WORKDIR /staging
@@ -65,6 +66,8 @@ RUN export DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true \
 # If your app or its dependencies import FoundationXML, also install `libxml2`.
       # libxml2 \
     && rm -r /var/lib/apt/lists/*
+
+ENV TZ=Asia/Shanghai
 
 # Create a vapor user and group with /app as its home directory
 RUN useradd --user-group --create-home --system --skel /dev/null --home-dir /app vapor
