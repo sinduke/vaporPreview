@@ -28,7 +28,7 @@ jobs:
       with:
         host: 47.236.41.229
         username: ${{ secrets.SSH_USERNAME }}
-        key: ${{ secrets.SSH_KEY }}
+        password: ${{ secrets.SSH_PASSWORD }}
         script: |
           cd /opt/vapor
           ./deploy.sh
