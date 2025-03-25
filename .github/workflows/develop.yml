@@ -13,6 +13,8 @@ jobs:
     steps:
       - name: 📦 Checkout Repository
         uses: actions/checkout@v4
+        with:
+          path: .
 
       - name: 🧬 Fancy Deploy with Docker
         uses: ./.github/actions/fancy-deploy
