@@ -147,7 +147,8 @@ runs:
         🎉 欢迎大爷下次再来 ~
         EOF
         )
-
+        
+        # Send to DingTalk
         JSON_PAYLOAD=$(jq -n --arg title "✨God Mode✨" --arg text "$TEXT" '{msgtype: "markdown", markdown: {title: $title, text: $text}}')
         curl "$DINGTALK_WEBHOOK" \
           -H 'Content-Type: application/json' \
