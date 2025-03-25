@@ -2,7 +2,7 @@ import Foundation
 
 func shell(_ command: String) throws -> String {
     let process = Process()
-    process.launchPath = "/bin/bash"
+    process.executableURL = URL(fileURLWithPath: "/bin/bash")
     process.arguments = ["-c", command]
 
     let pipe = Pipe()
