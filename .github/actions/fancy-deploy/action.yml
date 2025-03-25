@@ -43,14 +43,13 @@ runs:
         username: ${{ inputs.docker-username }}
         password: ${{ inputs.docker-password }}
 
-    # 暂时关闭打包和上传的部分 节约测试时间
-    # - name: 🏗️ Docker Build & Push
-    #   uses: docker/build-push-action@v4
-    #   with:
-    #     context: .
-    #     file: Dockerfile
-    #     push: true
-    #     tags: ${{ inputs.docker-image-tag }}
+    - name: 🏗️ Docker Build & Push
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        file: Dockerfile
+        push: true
+        tags: ${{ inputs.docker-image-tag }}
 
     - name: 📤 Upload docker-compose.yml to Server
       shell: bash
