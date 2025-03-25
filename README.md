@@ -34,6 +34,9 @@ wait
 echo ""
 ```
 
+### 测试去除deploy.sh文件的上传
+
+
 ### See more
 
 - [Vapor Website](https://vapor.codes)
