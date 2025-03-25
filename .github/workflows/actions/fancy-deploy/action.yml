@@ -59,7 +59,7 @@ runs:
     - name: 🚀 Remote Deploy
       shell: bash
       run: |
-        ssh root@${{ inputs.server }} <<'EOF'
+        ssh root@${{ inputs.server }} <<EOF
           set -e
           echo "🔐 检查 docker-compose.yml 权限"
           chmod 644 /opt/vapor/docker-compose.yml
@@ -85,7 +85,7 @@ runs:
           sed -i "s/proxy_pass http:\/\/127.0.0.1:$CURRENT_PORT/proxy_pass http:\/\/127.0.0.1:$NEW_PORT/" /opt/1panel/apps/openresty/openresty/conf/conf.d/test.yiqian.site.conf
           systemctl restart 1panel
           echo "✅ 部署完成"
-        'EOF'
+        EOF
 
     - name: 💬 Generate Deploy Summary with ChatGPT
       id: gpt
@@ -131,21 +131,21 @@ runs:
         REPO_NAME="${GITHUB_REPOSITORY##*/}"
         NOW=$(date '+%Y-%m-%d %H:%M:%S')
         TEXT=$(cat <<EOF
-          ### 📜 帝国部署成功：「$REPO_NAME」 ⚔️
-          
-          - 👤 人员：\`${{ github.actor }}\`
-          - 🌿 分支：\`${{ github.ref_name }}\`
-          - 🕰️ 时间：\`$NOW\`
-          - 🖥️ 服务器：\`${{ inputs.server }}\`
+        ### 📜 帝国部署成功：「$REPO_NAME」 ⚔️
+        
+        - 👤 人员：\`${{ github.actor }}\`
+        - 🌿 分支：\`${{ github.ref_name }}\`
+        - 🕰️ 时间：\`$NOW\`
+        - 🖥️ 服务器：\`${{ inputs.server }}\`
 
-          ---
+        ---
 
-          $GPT_SUMMARY
+        $GPT_SUMMARY
 
-          ---
+        ---
 
-          🎉 欢迎大爷下次再来 ~
-          EOF
+        🎉 欢迎大爷下次再来 ~
+        EOF
         )
 
         JSON_PAYLOAD=$(jq -n --arg title "✨God Mode✨" --arg text "$TEXT" '{msgtype: "markdown", markdown: {title: $title, text: $text}}')
