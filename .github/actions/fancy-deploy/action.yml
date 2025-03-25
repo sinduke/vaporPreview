@@ -133,7 +133,7 @@ runs:
       run: |
         REPO_NAME="${GITHUB_REPOSITORY##*/}"
         NOW=$(date '+%Y-%m-%d %H:%M:%S')
-        TEXT=$(cat <<'EOF'
+        TEXT=$(cat <<EOF
         ### 📜 帝国部署成功：「$REPO_NAME」 ⚔️
 
         - 👤 人员：\`${{ github.actor }}\`
