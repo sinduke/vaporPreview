@@ -1,0 +1,164 @@
+name: "Fancy Deploy + Docker + DingTalk"
+description: "Docker 构建 + SSH 部署 + GPT 总结 + 钉钉通知"
+
+inputs:
+  server:
+    description: "部署服务器 IP"
+    required: true
+  ssh-private-key:
+    description: "SSH 私钥"
+    required: true
+  docker-username:
+    description: "DockerHub 用户名"
+    required: true
+  docker-password:
+    description: "DockerHub 密码"
+    required: true
+  dingtalk-webhook:
+    description: "钉钉机器人 webhook"
+    required: true
+  openai-key:
+    description: "DeepSeek / OpenAI 密钥"
+    required: true
+  docker-image-tag:
+    description: "Docker 镜像标签"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/checkout@v4
+
+    - name: 🔐 Setup SSH
+      shell: bash
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ inputs.ssh-private-key }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -H ${{ inputs.server }} >> ~/.ssh/known_hosts
+
+    - name: 🐳 Docker Login
+      uses: docker/login-action@v2
+      with:
+        username: ${{ inputs.docker-username }}
+        password: ${{ inputs.docker-password }}
+
+    - name: 🏗️ Docker Build & Push
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        file: Dockerfile
+        push: true
+        tags: ${{ inputs.docker-image-tag }}
+
+    - name: 🚀 Remote Deploy
+      shell: bash
+      run: |
+        ssh root@${{ inputs.server }} <<EOF
+          cd /opt/vapor
+          ./deploy.sh
+          EOF
+
+    - name: 📈 Report Build Info
+      run: |
+        echo "::notice::👤 User: ${{ github.actor }}"
+        echo "::notice::🔹 Branch: ${{ github.ref_name }}"
+        echo "::notice::🔹 Commit: ${{ github.sha }}"
+        echo "::notice::⏳ Time: $(date '+%Y-%m-%d %H:%M:%S')"
+
+    - name: 💬 Generate Deploy Summary with ChatGPT
+      id: gpt
+      env:
+        OPENAI_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+      run: |
+
+        # 获取 commit message
+        LAST_MSG=$(git log -1 --pretty=%B)
+        echo "Commit Message: $LAST_MSG"
+
+        # 拼接完整 content 字符串
+        FULL_CONTENT="请用一段开玩笑的话简要总结下面这次提交的内容: $LAST_MSG"
+        
+        # 用 jq 转成合法 JSON 字符串（带引号、转义 \n 等）
+        ESCAPED_CONTENT=$(jq -Rn --arg msg "$FULL_CONTENT" '$msg')
+        
+        # 构建 JSON 请求体（直接插入转义好的内容）
+        REQUEST_BODY=$(cat <<EOF
+        {
+          "model": "deepseek-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": $ESCAPED_CONTENT
+            }
+          ]
+        }
+        EOF
+        )
+    
+        RESPONSE=$(curl https://api.deepseek.com/chat/completions \
+          -s -H "Authorization: Bearer $OPENAI_API_KEY" \
+          -H "Content-Type: application/json" \
+          -d "$REQUEST_BODY")
+    
+        echo "Raw Response: $RESPONSE"
+        SUMMARY=$(echo "$RESPONSE" | jq -r .choices[0].message.content)
+        # ✅ 日志中输出提示
+        echo "::notice::📓 ChatGPT Summary: $SUMMARY"
+        # ✅ 安全写入 GITHUB_OUTPUT
+        {
+        echo 'summary<<EOF'
+        echo "$SUMMARY"
+        echo 'EOF'
+        } >> "$GITHUB_OUTPUT"
+
+    - name: 📢 Notify DingTalk
+      if: always()
+      env:
+        DINGTALK_WEBHOOK: ${{ secrets.DINGTALK_WEBHOOK }}
+        GPT_SUMMARY: ${{ steps.gpt.outputs.summary }}
+      run: |
+          REPO_NAME="${GITHUB_REPOSITORY##*/}"
+          NOW=$(date '+%Y-%m-%d %H:%M:%S')
+          TEXT=$(cat <<EOF
+          ### 📜 帝国通告 ·「$REPO_NAME」完成战略级部署 ☄️
+          
+          - 👤 人员：\`${{ github.actor }}\`
+          - 🌿 分支：\`${{ github.ref_name }}\`
+          - 🕰️ 时间：\`$NOW\`
+          - 🖥️ 服务器：\`${{ inputs.server }}\`
+          
+          ---
+
+          $GPT_SUMMARY
+
+          ---
+          
+          🎉 欢迎大爷下次再来 ~
+          EOF
+          )
+
+          # 构建合法 JSON
+          JSON_PAYLOAD=$(jq -n --arg title "✨God Mode✨" --arg text "$TEXT" '{
+          msgtype: "markdown",
+            markdown: {
+              title: $title,
+              text: $text
+            }
+          }')
+
+          curl "$DINGTALK_WEBHOOK" \
+            -H 'Content-Type: application/json' \
+            -d "$JSON_PAYLOAD"
+
+    - name: 💥 Print Final ASCII
+      run: |
+        cat <<'EOF'
+           ____       _     __  __           _      
+         / ___| ___ | |_  |  \/  | ___   __| | ___ 
+        | |  _ / _ \| __| | |\/| |/ _ \ / _` |/ _ \
+        | |_| | (_) | |_  | |  | | (_) | (_| |  __/
+         \____|\___/ \__| |_|  |_|\___/ \__,_|\___|
+        
+          ✨ GitHub Actions · God Mode Engaged ✨
+        EOF
