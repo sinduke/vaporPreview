@@ -38,7 +38,7 @@ docker-compose up -d "$NEW_SERVICE"
 ### ❤️ 健康检查（10 次重试，每次 3 秒）
 for i in {1..10}; do
   echo "🔍 第 $i 次健康检查..."
-  if curl -f -H "X-API-Key: $API_KEY" http://localhost:$NEW_PORT$HEALTH_PATH > /dev/null 2>&1; then
+  if curl -f -L -H "X-API-Key: $API_KEY" http://localhost:$NEW_PORT$HEALTH_PATH > /dev/null 2>&1; then
     echo "✅ 新服务健康检查通过"
     break
   fi
