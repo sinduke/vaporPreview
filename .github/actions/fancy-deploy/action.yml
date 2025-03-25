@@ -43,13 +43,14 @@ runs:
         username: ${{ inputs.docker-username }}
         password: ${{ inputs.docker-password }}
 
-    - name: 🏗️ Docker Build & Push
-      uses: docker/build-push-action@v4
-      with:
-        context: .
-        file: Dockerfile
-        push: true
-        tags: ${{ inputs.docker-image-tag }}
+    # 暂时关闭打包和上传的部分 节约测试时间
+    # - name: 🏗️ Docker Build & Push
+    #   uses: docker/build-push-action@v4
+    #   with:
+    #     context: .
+    #     file: Dockerfile
+    #     push: true
+    #     tags: ${{ inputs.docker-image-tag }}
 
     - name: 📤 Upload docker-compose.yml to Server
       shell: bash
@@ -60,31 +61,31 @@ runs:
       shell: bash
       run: |
         ssh root@${{ inputs.server }} <<EOF
-          set -e
-          echo "🔐 检查 docker-compose.yml 权限"
-          chmod 644 /opt/vapor/docker-compose.yml
+        set -e
+        echo "🔐 检查 docker-compose.yml 权限"
+        chmod 644 /opt/vapor/docker-compose.yml
 
-          echo "🚀 开始部署流程"
-          cd /opt/vapor
+        echo "🚀 开始部署流程"
+        cd /opt/vapor
 
-          CURRENT_PORT=$(grep -oP 'proxy_pass http://127.0.0.1:\K\d+' /opt/1panel/apps/openresty/openresty/conf/conf.d/test.yiqian.site.conf || echo "8080")
-          NEW_PORT=$([ "$CURRENT_PORT" = "8080" ] && echo "8081" || echo "8080")
-          NEW_SERVICE=$([ "$NEW_PORT" = "8080" ] && echo "app-blue" || echo "app-green")
-          OLD_SERVICE=$([ "$NEW_PORT" = "8080" ] && echo "app-green" || echo "app-blue")
+        CURRENT_PORT=$(grep -oP 'proxy_pass http://127.0.0.1:\K\d+' /opt/1panel/apps/openresty/openresty/conf/conf.d/test.yiqian.site.conf || echo "8080")
+        NEW_PORT=$([ "$CURRENT_PORT" = "8080" ] && echo "8081" || echo "8080")
+        NEW_SERVICE=$([ "$NEW_PORT" = "8080" ] && echo "app-blue" || echo "app-green")
+        OLD_SERVICE=$([ "$NEW_PORT" = "8080" ] && echo "app-green" || echo "app-blue")
 
-          docker-compose pull $NEW_SERVICE
-          docker-compose up -d $NEW_SERVICE
-          sleep 30
-          curl -f -H "X-API-Key: sinduke" http://localhost:$NEW_PORT/sinduke/health || exit 1
+        docker-compose pull $NEW_SERVICE
+        docker-compose up -d $NEW_SERVICE
+        sleep 30
+        curl -f -H "X-API-Key: sinduke" http://localhost:$NEW_PORT/sinduke/health || exit 1
 
-          docker-compose pull $OLD_SERVICE
-          docker-compose up -d $OLD_SERVICE
-          sleep 30
-          curl -f -H "X-API-Key: sinduke" http://localhost:$CURRENT_PORT/sinduke/health || exit 1
+        docker-compose pull $OLD_SERVICE
+        docker-compose up -d $OLD_SERVICE
+        sleep 30
+        curl -f -H "X-API-Key: sinduke" http://localhost:$CURRENT_PORT/sinduke/health || exit 1
 
-          sed -i "s/proxy_pass http:\/\/127.0.0.1:$CURRENT_PORT/proxy_pass http:\/\/127.0.0.1:$NEW_PORT/" /opt/1panel/apps/openresty/openresty/conf/conf.d/test.yiqian.site.conf
-          systemctl restart 1panel
-          echo "✅ 部署完成"
+        sed -i "s/proxy_pass http:\/\/127.0.0.1:$CURRENT_PORT/proxy_pass http:\/\/127.0.0.1:$NEW_PORT/" /opt/1panel/apps/openresty/openresty/conf/conf.d/test.yiqian.site.conf
+        systemctl restart 1panel
+        echo "✅ 部署完成"
         EOF
 
     - name: 💬 Generate Deploy Summary with ChatGPT
@@ -99,16 +100,16 @@ runs:
         ESCAPED_CONTENT=$(jq -Rn --arg msg "请用一段开玩笑的话简要总结下面这次提交的内容: $LAST_MSG" '$msg')
 
         REQUEST_BODY=$(cat <<EOF
-          {
-            "model": "deepseek-chat",
-            "messages": [
-              {
-                "role": "user",
-                "content": $ESCAPED_CONTENT
-              }
-            ]
-          }
-          EOF
+        {
+        "model": "deepseek-chat",
+        "messages": [
+        {
+        "role": "user",
+        "content": $ESCAPED_CONTENT
+        }
+        ]
+        }
+        EOF
         )
 
         RESPONSE=$(curl https://api.deepseek.com/chat/completions \
@@ -117,9 +118,11 @@ runs:
           -d "$REQUEST_BODY")
 
         SUMMARY=$(echo "$RESPONSE" | jq -r .choices[0].message.content)
-        echo "summary<<EOF" >> $GITHUB_OUTPUT
-        echo "$SUMMARY" >> $GITHUB_OUTPUT
-        echo "EOF" >> $GITHUB_OUTPUT
+        {
+          echo "summary<<EOF"
+          echo "$SUMMARY"
+          echo "EOF"
+        } >> "$GITHUB_OUTPUT"
 
     - name: 📢 Notify DingTalk
       if: always()
@@ -157,7 +160,7 @@ runs:
     - name: 💥 Print Final ASCII
       shell: bash
       run: |
-        cat <<'EOF'
+        cat <<EOF
            ____       _     __  __           _      
          / ___| ___ | |_  |  \/  | ___   __| | ___ 
         | |  _ / _ \| __| | |\/| |/ _ \ / _` |/ _ \
@@ -165,4 +168,4 @@ runs:
          \____|\___/ \__| |_|  |_|\___/ \__,_|\___|
         
           ✨ GitHub Actions · God Mode Engaged ✨
-        'EOF'
+        EOF
