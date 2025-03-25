@@ -1,5 +1,5 @@
-name: "Fancy Deploy + Docker + DingTalk"
-description: "Docker 构建 + SSH 部署 + GPT 总结 + 钉钉通知"
+name: "Fancy Deploy v1.2 + Docker + DingTalk"
+description: "构建镜像 + 上传 docker-compose.yml + SSH 部署 + GPT 总结 + 钉钉通知"
 
 inputs:
   server:
@@ -51,107 +51,110 @@ runs:
         push: true
         tags: ${{ inputs.docker-image-tag }}
 
+    - name: 📤 Upload docker-compose.yml to Server
+      shell: bash
+      run: |
+        scp -o StrictHostKeyChecking=no docker-compose.yml root@${{ inputs.server }}:/opt/vapor/docker-compose.yml
+
     - name: 🚀 Remote Deploy
       shell: bash
       run: |
-        ssh root@${{ inputs.server }} <<EOF
-          cd /opt/vapor
-          ./deploy.sh
-          EOF
+        ssh root@${{ inputs.server }} <<'EOF'
+          set -e
+          echo "🔐 检查 docker-compose.yml 权限"
+          chmod 644 /opt/vapor/docker-compose.yml
 
-    - name: 📈 Report Build Info
-      run: |
-        echo "::notice::👤 User: ${{ github.actor }}"
-        echo "::notice::🔹 Branch: ${{ github.ref_name }}"
-        echo "::notice::🔹 Commit: ${{ github.sha }}"
-        echo "::notice::⏳ Time: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "🚀 开始部署流程"
+          cd /opt/vapor
+
+          CURRENT_PORT=$(grep -oP 'proxy_pass http://127.0.0.1:\K\d+' /opt/1panel/apps/openresty/openresty/conf/conf.d/test.yiqian.site.conf || echo "8080")
+          NEW_PORT=$([ "$CURRENT_PORT" = "8080" ] && echo "8081" || echo "8080")
+          NEW_SERVICE=$([ "$NEW_PORT" = "8080" ] && echo "app-blue" || echo "app-green")
+          OLD_SERVICE=$([ "$NEW_PORT" = "8080" ] && echo "app-green" || echo "app-blue")
+
+          docker-compose pull $NEW_SERVICE
+          docker-compose up -d $NEW_SERVICE
+          sleep 30
+          curl -f -H "X-API-Key: sinduke" http://localhost:$NEW_PORT/sinduke/health || exit 1
+
+          docker-compose pull $OLD_SERVICE
+          docker-compose up -d $OLD_SERVICE
+          sleep 30
+          curl -f -H "X-API-Key: sinduke" http://localhost:$CURRENT_PORT/sinduke/health || exit 1
+
+          sed -i "s/proxy_pass http:\/\/127.0.0.1:$CURRENT_PORT/proxy_pass http:\/\/127.0.0.1:$NEW_PORT/" /opt/1panel/apps/openresty/openresty/conf/conf.d/test.yiqian.site.conf
+          systemctl restart 1panel
+          echo "✅ 部署完成"
+        'EOF'
 
     - name: 💬 Generate Deploy Summary with ChatGPT
       id: gpt
       env:
-        OPENAI_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        OPENAI_API_KEY: ${{ inputs.openai-key }}
+      shell: bash
       run: |
 
-        # 获取 commit message
         LAST_MSG=$(git log -1 --pretty=%B)
         echo "Commit Message: $LAST_MSG"
+        ESCAPED_CONTENT=$(jq -Rn --arg msg "请用一段开玩笑的话简要总结下面这次提交的内容: $LAST_MSG" '$msg')
 
-        # 拼接完整 content 字符串
-        FULL_CONTENT="请用一段开玩笑的话简要总结下面这次提交的内容: $LAST_MSG"
-        
-        # 用 jq 转成合法 JSON 字符串（带引号、转义 \n 等）
-        ESCAPED_CONTENT=$(jq -Rn --arg msg "$FULL_CONTENT" '$msg')
-        
-        # 构建 JSON 请求体（直接插入转义好的内容）
         REQUEST_BODY=$(cat <<EOF
-        {
-          "model": "deepseek-chat",
-          "messages": [
-            {
-              "role": "user",
-              "content": $ESCAPED_CONTENT
-            }
-          ]
-        }
-        EOF
+          {
+            "model": "deepseek-chat",
+            "messages": [
+              {
+                "role": "user",
+                "content": $ESCAPED_CONTENT
+              }
+            ]
+          }
+          EOF
         )
-    
+
         RESPONSE=$(curl https://api.deepseek.com/chat/completions \
           -s -H "Authorization: Bearer $OPENAI_API_KEY" \
           -H "Content-Type: application/json" \
           -d "$REQUEST_BODY")
-    
-        echo "Raw Response: $RESPONSE"
+
         SUMMARY=$(echo "$RESPONSE" | jq -r .choices[0].message.content)
-        # ✅ 日志中输出提示
-        echo "::notice::📓 ChatGPT Summary: $SUMMARY"
-        # ✅ 安全写入 GITHUB_OUTPUT
-        {
-        echo 'summary<<EOF'
-        echo "$SUMMARY"
-        echo 'EOF'
-        } >> "$GITHUB_OUTPUT"
+        echo "summary<<EOF" >> $GITHUB_OUTPUT
+        echo "$SUMMARY" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
 
     - name: 📢 Notify DingTalk
       if: always()
+      shell: bash
       env:
-        DINGTALK_WEBHOOK: ${{ secrets.DINGTALK_WEBHOOK }}
+        DINGTALK_WEBHOOK: ${{ inputs.dingtalk-webhook }}
         GPT_SUMMARY: ${{ steps.gpt.outputs.summary }}
       run: |
-          REPO_NAME="${GITHUB_REPOSITORY##*/}"
-          NOW=$(date '+%Y-%m-%d %H:%M:%S')
-          TEXT=$(cat <<EOF
-          ### 📜 帝国通告 ·「$REPO_NAME」完成战略级部署 ☄️
+        REPO_NAME="${GITHUB_REPOSITORY##*/}"
+        NOW=$(date '+%Y-%m-%d %H:%M:%S')
+        TEXT=$(cat <<EOF
+          ### 📜 帝国部署成功：「$REPO_NAME」 ⚔️
           
           - 👤 人员：\`${{ github.actor }}\`
           - 🌿 分支：\`${{ github.ref_name }}\`
           - 🕰️ 时间：\`$NOW\`
           - 🖥️ 服务器：\`${{ inputs.server }}\`
-          
+
           ---
 
           $GPT_SUMMARY
 
           ---
-          
+
           🎉 欢迎大爷下次再来 ~
           EOF
-          )
+        )
 
-          # 构建合法 JSON
-          JSON_PAYLOAD=$(jq -n --arg title "✨God Mode✨" --arg text "$TEXT" '{
-          msgtype: "markdown",
-            markdown: {
-              title: $title,
-              text: $text
-            }
-          }')
-
-          curl "$DINGTALK_WEBHOOK" \
-            -H 'Content-Type: application/json' \
-            -d "$JSON_PAYLOAD"
+        JSON_PAYLOAD=$(jq -n --arg title "✨God Mode✨" --arg text "$TEXT" '{msgtype: "markdown", markdown: {title: $title, text: $text}}')
+        curl "$DINGTALK_WEBHOOK" \
+          -H 'Content-Type: application/json' \
+          -d "$JSON_PAYLOAD"
 
     - name: 💥 Print Final ASCII
+      shell: bash
       run: |
         cat <<'EOF'
            ____       _     __  __           _      
@@ -161,4 +164,4 @@ runs:
          \____|\___/ \__| |_|  |_|\___/ \__,_|\___|
         
           ✨ GitHub Actions · God Mode Engaged ✨
-        EOF
+        'EOF'
