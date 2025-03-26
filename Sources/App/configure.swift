@@ -21,11 +21,13 @@ public func configure(_ app: Application) async throws {
     ), as: .psql)
 
     app.migrations.add(CreateTodo())
+    app.migrations.add(CreateUser())
+    try UserController().boot(routes: app.routes)
     // 不区分大小写
     app.routes.caseInsensitive = true
 
     app.views.use(.leaf)
-
+    try await app.autoMigrate()
     // register routes
     try routes(app)
     for route in app.routes.all {
