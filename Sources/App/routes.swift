@@ -144,5 +144,12 @@ func routes(_ app: Application) throws {
         return res
     }
 
+
+    app.get("api-examples") { req async throws -> View in
+        try await req.view.render("api-examples", [
+            "uuidExample": UUID().uuidString // 传递一个示例 UUID
+        ])
+    }
+
     try app.register(collection: TodoController())
 }
