@@ -74,13 +74,11 @@ runs:
 
         docker-compose pull $NEW_SERVICE
         docker-compose up -d $NEW_SERVICE
-        sleep 30
-        curl -f -H "X-API-Key: sinduke" http://localhost:$NEW_PORT/sinduke/health || exit 1
+        curl -f --retry 30 --retry-delay 1 -H "X-API-Key: sinduke" http://localhost:$NEW_PORT/sinduke/health || exit 1
 
         docker-compose pull $OLD_SERVICE
         docker-compose up -d $OLD_SERVICE
-        sleep 30
-        curl -f -H "X-API-Key: sinduke" http://localhost:$CURRENT_PORT/sinduke/health || exit 1
+        curl -f --retry 30 --retry-delay 1 -H "X-API-Key: sinduke" http://localhost:$NEW_PORT/sinduke/health || exit 1
 
         sed -i "s/proxy_pass http:\/\/127.0.0.1:$CURRENT_PORT/proxy_pass http:\/\/127.0.0.1:$NEW_PORT/" /opt/1panel/apps/openresty/openresty/conf/conf.d/test.yiqian.site.conf
         systemctl restart 1panel
