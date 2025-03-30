@@ -93,7 +93,7 @@ runs:
         docker-compose up -d $NEW_SERVICE
         
         # 修改 2.2：健康检查重试减半，间隔缩短，总上限从30秒降到7.5秒
-        curl -f --retry 15 --retry-delay 0.5 -H "X-API-Key: sinduke" http://localhost:$NEW_PORT/sinduke/health || exit 1
+        curl -f --retry 15 --retry-delay 1 -H "X-API-Key: sinduke" http://localhost:$NEW_PORT/sinduke/health || exit 1
         
         # 修改 2.3：去掉 OLD_SERVICE 的 pull、up 和健康检查，省30-60秒
         # docker-compose pull $OLD_SERVICE
